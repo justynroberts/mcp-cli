@@ -1,0 +1,67 @@
+# mcp-cli configuration
+# Secrets are never stored here directly — ${VAR} is expanded from the
+# environment at run time, and ${VAR:-default} supplies a fallback.
+
+version: 1
+
+defaults:
+  timeout: 60s
+  # server: github          # used when a command omits the server name
+
+servers:
+  # GitHub's hosted MCP server (Streamable HTTP + bearer auth).
+  # Create a PAT at https://github.com/settings/tokens and export GITHUB_TOKEN.
+  github:
+    description: GitHub repositories, issues, pull requests, code search
+    transport: http
+    url: https://api.githubcopilot.com/mcp/
+    auth:
+      type: bearer
+      token: ${GITHUB_TOKEN}
+
+  # The same server run locally in Docker over stdio, if you prefer that.
+  github-local:
+    disabled: true
+    transport: stdio
+    command: docker
+    args: [run, -i, --rm, -e, GITHUB_PERSONAL_ACCESS_TOKEN, ghcr.io/github/github-mcp-server]
+    env:
+      GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_TOKEN}
+
+  # Confluence + Jira via mcp-atlassian (stdio, credentials passed as env).
+  # Cloud uses an API token; Server/Data Center uses a personal access token.
+  confluence:
+    description: Confluence pages, spaces and search
+    transport: stdio
+    command: docker
+    args:
+      - run
+      - -i
+      - --rm
+      - -e
+      - CONFLUENCE_URL
+      - -e
+      - CONFLUENCE_USERNAME
+      - -e
+      - CONFLUENCE_API_TOKEN
+      - ghcr.io/sooperset/mcp-atlassian:latest
+    env:
+      CONFLUENCE_URL: ${CONFLUENCE_URL:-https://your-org.atlassian.net/wiki}
+      CONFLUENCE_USERNAME: ${CONFLUENCE_USERNAME}
+      CONFLUENCE_API_TOKEN: ${CONFLUENCE_API_TOKEN}
+
+  # Atlassian's hosted server speaks the older HTTP+SSE transport.
+  atlassian-remote:
+    disabled: true
+    transport: sse
+    url: https://mcp.atlassian.com/v1/sse
+    auth:
+      type: bearer
+      token: ${ATLASSIAN_OAUTH_TOKEN}
+
+  # Any local stdio server works the same way.
+  filesystem:
+    disabled: true
+    transport: stdio
+    command: npx
+    args: [-y, "@modelcontextprotocol/server-filesystem", "${HOME}/work"]
