@@ -31,7 +31,10 @@ go test ./internal/cli -run TestToolsAndCallEndToEnd -v   # one test
 Smoke test against a real server (no credentials needed):
 
 ```bash
+make build                                      # ALWAYS rebuild first: `go build ./...`
+                                                # does not refresh ./mcp-cli
 ./mcp-cli -cmd "npx -y @modelcontextprotocol/server-filesystem /tmp" tools -p
+./examples/tour.sh                              # the full documented tour
 ```
 
 ## Architecture
@@ -104,6 +107,21 @@ wherever a deadline can fire: it re-tags timeouts and cancellations as
 a code smell, not a default. `*mcp.RPCError` is detected via its `RPCDetails`
 method so the JSON-RPC code reaches the output envelope.
 
+**Flags are accepted anywhere on the line**, including after positional
+arguments (`call github search_issues query=bug -raw`). Go's `flag` package
+stops at the first positional, which silently handed `-raw` to the tool as an
+argument — the built-in help advertised a form that did not work.
+`splitArgs` (`internal/cli/flags.go`) pre-sorts tokens into flags and
+positionals before either FlagSet parses, honouring `-flag=value`, value-taking
+vs boolean flags, and a `--` terminator. Both the root and subcommand parses go
+through it; don't call `fs.Parse` on raw argv.
+
+**Every list is an array, never null.** The `List*` methods in
+`internal/mcp/client.go` start from an empty slice, and `discover` seeds each
+server's `tools`, so `jq '.tools[]'` never breaks on a server with nothing to
+report. A Go `var xs []T` that reaches the encoder marshals as `null` — that is
+the bug this prevents.
+
 ### Adding a subcommand
 
 Append a `*command` var in `internal/cli/commands.go` and add it to the slice in
@@ -125,6 +143,12 @@ parsed envelope and the exit code, so the output contract above is enforced by
 tests — expect them to fail if you change the envelope shape.
 
 No test touches the network or needs credentials. Keep it that way.
+
+`examples/tour.sh` is the manual counterpart: it runs the documented commands
+against the real `@modelcontextprotocol` reference servers over stdio and HTTP.
+Run it after changing output shapes or flag handling — it caught both the
+flag-placement bug and the null-list bug. The README's Examples section is
+captured from its output, so update them together.
 
 ## Things that will bite
 

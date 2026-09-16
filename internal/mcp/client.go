@@ -251,7 +251,7 @@ func (c *Client) Ping(ctx context.Context) error {
 
 // ListTools returns every tool, following pagination cursors.
 func (c *Client) ListTools(ctx context.Context) ([]Tool, error) {
-	var all []Tool
+	all := []Tool{}
 	cursor := ""
 	for {
 		var page ListToolsResult
@@ -282,7 +282,7 @@ func (c *Client) CallTool(ctx context.Context, name string, args map[string]any)
 
 // ListResources returns every resource, following pagination cursors.
 func (c *Client) ListResources(ctx context.Context) ([]Resource, error) {
-	var all []Resource
+	all := []Resource{}
 	cursor := ""
 	for {
 		var page ListResourcesResult
@@ -299,7 +299,7 @@ func (c *Client) ListResources(ctx context.Context) ([]Resource, error) {
 
 // ListResourceTemplates returns every resource template.
 func (c *Client) ListResourceTemplates(ctx context.Context) ([]ResourceTemplate, error) {
-	var all []ResourceTemplate
+	all := []ResourceTemplate{}
 	cursor := ""
 	for {
 		var page ListResourceTemplatesResult
@@ -331,7 +331,7 @@ func (c *Client) ReadResource(ctx context.Context, uri string) (*ReadResourceRes
 
 // ListPrompts returns every prompt, following pagination cursors.
 func (c *Client) ListPrompts(ctx context.Context) ([]Prompt, error) {
-	var all []Prompt
+	all := []Prompt{}
 	cursor := ""
 	for {
 		var page ListPromptsResult

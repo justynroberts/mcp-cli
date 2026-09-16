@@ -396,7 +396,7 @@ var cmdDiscover = &command{
 		}
 		type serverTools struct {
 			Server string           `json:"server"`
-			Tools  []map[string]any `json:"tools,omitempty"`
+			Tools  []map[string]any `json:"tools"`
 			Error  string           `json:"error,omitempty"`
 		}
 		names := cfg.Names()
@@ -404,7 +404,7 @@ var cmdDiscover = &command{
 		var wg sync.WaitGroup
 		for i, name := range names {
 			srv := cfg.Servers[name]
-			results[i] = serverTools{Server: name}
+			results[i] = serverTools{Server: name, Tools: []map[string]any{}}
 			if srv.Disabled {
 				results[i].Error = "disabled"
 				continue

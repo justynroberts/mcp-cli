@@ -120,7 +120,13 @@ func Run(argv []string) int {
 	root := flag.NewFlagSet("mcp-cli", flag.ContinueOnError)
 	root.SetOutput(io.Discard)
 	g.register(root)
-	if err := root.Parse(argv); err != nil {
+	rootFlags, rootPositional, err := splitArgs(root, argv)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "mcp-cli: %v\n\n", err)
+		usage(os.Stderr)
+		return 2
+	}
+	if err := root.Parse(rootFlags); err != nil {
 		if err == flag.ErrHelp {
 			usage(os.Stdout)
 			return 0
@@ -130,7 +136,7 @@ func Run(argv []string) int {
 		return 2
 	}
 
-	rest := root.Args()
+	rest := rootPositional
 	if len(rest) == 0 {
 		usage(os.Stdout)
 		return 0
@@ -159,7 +165,12 @@ func Run(argv []string) int {
 	sub := flag.NewFlagSet(cmd.name, flag.ContinueOnError)
 	sub.SetOutput(io.Discard)
 	g.register(sub)
-	if err := sub.Parse(rest[1:]); err != nil {
+	subFlags, subPositional, err := splitArgs(sub, rest[1:])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "mcp-cli: %v\nUsage: mcp-cli %s\n", err, cmd.usage)
+		return 2
+	}
+	if err := sub.Parse(subFlags); err != nil {
 		if err == flag.ErrHelp {
 			fmt.Fprintf(os.Stdout, "Usage: mcp-cli %s\n\n%s\n", cmd.usage, cmd.summary)
 			return 0
@@ -169,7 +180,7 @@ func Run(argv []string) int {
 	}
 
 	w := output.New(g.pretty, g.raw)
-	rc := &runContext{g: g, args: sub.Args(), out: w}
+	rc := &runContext{g: g, args: subPositional, out: w}
 
 	ctx, stop := signalContext(context.Background())
 	defer stop()

@@ -48,6 +48,117 @@ mcp-cli -url https://api.githubcopilot.com/mcp/ -token '${GITHUB_TOKEN}' tools
 mcp-cli -cmd "npx -y @modelcontextprotocol/server-filesystem /tmp" tools
 ```
 
+## Examples
+
+Every command below is real, and the output is captured from an actual run
+against two reference servers that need no credentials. `examples/tour.sh`
+runs the whole sequence — use it to check an install:
+
+```bash
+./examples/tour.sh
+```
+
+**Ask a server what it can do.** No config file needed; `-cmd` defines the
+server inline.
+
+```console
+$ mcp-cli -cmd 'npx -y @modelcontextprotocol/server-filesystem /tmp/demo' tools -raw | jq '.count'
+14
+
+$ mcp-cli -cmd 'npx -y @modelcontextprotocol/server-filesystem /tmp/demo' tools search -raw | jq -r '.tools[].name'
+search_files
+```
+
+**Ask what a tool takes**, rather than guessing:
+
+```console
+$ mcp-cli -cmd '...server-filesystem /tmp/demo' schema read_text_file -raw | jq -c '.input_schema.properties | keys'
+["head","path","tail"]
+```
+
+**Call it.** `head=2` is a string on the command line and a number in the
+request, because the tool's schema says `integer`:
+
+```console
+$ mcp-cli -cmd '...server-filesystem /tmp/demo' call read_text_file path=/tmp/demo/notes.txt head=2 -raw
+{"content":"alpha\nbravo"}
+```
+
+**A tool that returns JSON hands you an object**, ready for jq:
+
+```console
+$ cat /tmp/demo/service.json
+{"service":"servicename","tier":1,"oncall":["ada","grace"]}
+
+$ mcp-cli -cmd '...server-filesystem /tmp/demo' call read_text_file path=/tmp/demo/service.json -raw | jq -r '.oncall[]'
+ada
+grace
+```
+
+**Resources and prompts, not just tools:**
+
+```console
+$ mcp-cli -cmd 'npx -y @modelcontextprotocol/server-everything stdio' resources -raw | jq -c '{count, first: .resources[0].uri}'
+{"count":7,"first":"demo://resource/static/document/architecture.md"}
+
+$ mcp-cli -cmd '...server-everything stdio' prompts -raw | jq -r '.prompts[].name'
+simple-prompt
+args-prompt
+completable-prompt
+resource-prompt
+
+$ mcp-cli -cmd '...server-everything stdio' prompt args-prompt city=London state=UK -raw | jq -r '.messages[0].content.text'
+What's weather in London, UK?
+```
+
+**Mistakes are caught before the call is sent**, with the server's own schema
+as the source of truth:
+
+```console
+$ mcp-cli -cmd '...server-everything stdio' call get-structured-content
+mcp-cli: tool "get-structured-content" requires: location (see `mcp-cli -cmd "..." schema get-structured-content`)
+$ echo $?
+2
+
+$ mcp-cli -cmd '...server-everything stdio' call get-structured-content location=London
+mcp-cli: argument "location": "London" is not one of "New York", "Chicago", "Los Angeles"
+
+$ mcp-cli -cmd '...server-everything stdio' call get-structured-content location='New York' -raw | jq -c .
+{"conditions":"Cloudy","humidity":82,"temperature":33}
+```
+
+**Exit codes let you branch without parsing:**
+
+```console
+$ mcp-cli -cmd '...server-everything stdio' ping >/dev/null 2>&1 && echo reachable || echo unreachable
+reachable
+
+$ mcp-cli -url http://localhost:9 ping >/dev/null 2>&1; echo "exit=$?"
+exit=4
+```
+
+**The same server over HTTP** — only the flags change:
+
+```console
+$ mcp-cli -url http://localhost:3101/mcp -raw call get-sum a=40 b=2
+"The sum of 40 and 2 is 42."
+
+$ mcp-cli -url http://localhost:3101/mcp -raw info | jq -c '{server: .server.name, protocol: .protocol_version}'
+{"server":"mcp-servers/everything","protocol":"2025-06-18"}
+```
+
+**Query every configured server at once.** `discover` connects in parallel and
+reports per-server, so one dead server does not sink the command:
+
+```console
+$ mcp-cli discover read -raw | jq -c '[.servers[] | {server, tools: [.tools[].name]}]'
+[{"server":"everything","tools":[]},{"server":"files","tools":["read_file","read_text_file","read_media_file","read_multiple_files","create_directory","directory_tree","get_file_info"]}]
+```
+
+Flags may go anywhere on the line — `-raw` at the end reads naturally and works.
+Use `--` if a tool argument itself starts with a dash.
+
+
 ## Walkthrough: pulling a runbook out of Confluence
 
 The task: *"get me the runbook for `servicename`."* Confluence is reached
@@ -281,6 +392,9 @@ and `-full` additionally keeps every raw content block. A server that returns
 Blocks that text cannot represent — images, audio, resource links, binary
 resources — are always kept under `data.content`, so a result is never silently
 truncated to its text.
+
+Every list is always a JSON array — an empty one is `[]`, never `null` or an
+absent key — so `jq '.tools[]'` is safe against any server.
 
 `-raw` prints just the useful payload — `json`, else `structured`, else the
 text — which is normally what you want in a pipeline:

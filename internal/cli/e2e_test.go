@@ -439,3 +439,88 @@ func TestTimeoutExitsAsAConnectionFailure(t *testing.T) {
 		t.Errorf("the error kind should say timeout: %s", out)
 	}
 }
+
+func TestFlagsAfterPositionalArguments(t *testing.T) {
+	// `-raw` at the end of the line must be a flag, not a tool argument: it is
+	// where people naturally type it, and where the built-in help shows it.
+	cfg := writeConfig(t, "")
+	code, out := runCLI(t, "-c", cfg, "call", "mock", "search_issues", "query=bug", "-raw")
+	if code != 0 {
+		t.Fatalf("exit = %d: %s", code, out)
+	}
+	v := decode(t, out)
+	if _, isEnvelope := v["ok"]; isEnvelope {
+		t.Errorf("trailing -raw was not applied: %s", out)
+	}
+
+	// The same for a flag that takes a value, and for a filter positional.
+	if code, out = runCLI(t, "-c", cfg, "tools", "mock", "search", "-raw", "-timeout", "20s"); code != 0 {
+		t.Fatalf("exit = %d: %s", code, out)
+	}
+	data := decode(t, out)
+	if data["count"].(float64) != 1 {
+		t.Errorf("filter positional lost: %s", out)
+	}
+
+	// -flag=value form, and flags before the subcommand, still work.
+	if code, out = runCLI(t, "-c", cfg, "-pretty=true", "tools", "mock"); code != 0 {
+		t.Fatalf("exit = %d: %s", code, out)
+	}
+	if !strings.Contains(out, "\n  ") {
+		t.Errorf("-pretty=true was not applied: %s", out)
+	}
+}
+
+func TestDoubleDashPassesArgumentsThrough(t *testing.T) {
+	cfg := writeConfig(t, "")
+	// After --, a dash-leading token is a tool argument, not a flag.
+	code, out := runCLI(t, "-c", cfg, "-raw", "call", "mock", "say_hello", "--", "name=-dash")
+	if code != 0 {
+		t.Fatalf("exit = %d: %s", code, out)
+	}
+	if !strings.Contains(out, "hello -dash") {
+		t.Errorf("out = %s", out)
+	}
+}
+
+func TestUnknownFlagIsRejected(t *testing.T) {
+	cfg := writeConfig(t, "")
+	if code, out := runCLI(t, "-c", cfg, "tools", "mock", "-nonsuch"); code != 2 {
+		t.Errorf("unknown trailing flag should exit 2, got %d: %s", code, out)
+	}
+	if code, out := runCLI(t, "-c", cfg, "tools", "mock", "-timeout"); code != 2 {
+		t.Errorf("a value flag with no value should exit 2, got %d: %s", code, out)
+	}
+}
+
+func TestEmptyListsAreArraysNotNull(t *testing.T) {
+	// Output is piped into jq; an absent or null list breaks `.[]` at the
+	// other end, so every list key must always be an array.
+	cfg := writeConfig(t, "")
+	code, out := runCLI(t, "-c", cfg, "resources", "mock", "-raw")
+	if code != 0 {
+		t.Fatalf("exit = %d: %s", code, out)
+	}
+	data := decode(t, out)
+	if _, ok := data["templates"].([]any); !ok {
+		t.Errorf("templates should be [] when the server has none, got %#v", data["templates"])
+	}
+
+	// discover: a server with no matching tool still gets an empty array.
+	if code, out = runCLI(t, "-c", cfg, "discover", "nothingmatchesthis", "-raw"); code != 0 {
+		t.Fatalf("exit = %d: %s", code, out)
+	}
+	for _, s := range decode(t, out)["servers"].([]any) {
+		if _, ok := s.(map[string]any)["tools"].([]any); !ok {
+			t.Errorf("per-server tools should be [], got %#v", s)
+		}
+	}
+
+	// A filter that matches nothing still yields an array.
+	if code, out = runCLI(t, "-c", cfg, "tools", "mock", "zzzz", "-raw"); code != 0 {
+		t.Fatalf("exit = %d: %s", code, out)
+	}
+	if _, ok := decode(t, out)["tools"].([]any); !ok {
+		t.Errorf("tools should be [], got %s", out)
+	}
+}
