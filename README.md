@@ -11,6 +11,8 @@ The result is one JSON document on stdout, ready for `jq` or a script.
 $ mcp-cli call github search_issues query="is:open label:bug" perPage:=5 -raw | jq '.items[].title'
 ```
 
+- **No LLM needed** — this is a protocol client, not an agent. No model, no API
+  key, no tokens; same input, same output. See [No LLM required](#no-llm-required).
 - **Portable** — pure Go, `CGO_ENABLED=0`, no runtime dependencies. macOS, Linux
   and Windows on amd64/arm64 all build from `make release`.
 - **Both transports** — stdio child processes, Streamable HTTP, and the legacy
@@ -19,6 +21,42 @@ $ mcp-cli call github search_issues query="is:open label:bug" perPage:=5 -raw | 
   pipe never gets polluted.
 - **No dependencies beyond `gopkg.in/yaml.v3`** — the MCP client is implemented
   here, so there is nothing to keep in sync with an SDK.
+
+## No LLM required
+
+MCP is usually drawn as *model ↔ tools*, but the protocol underneath is just
+JSON-RPC with self-describing schemas. `mcp-cli` is a plain client: no model, no
+API key, no inference, no tokens spent, and the same input gives the same output
+every time.
+
+That makes an MCP server usable as an ordinary API from cron jobs, CI steps,
+Makefiles, monitoring checks and shell functions. The appeal is leverage: one
+config file and one interface across GitHub, Confluence, Jira and anything else
+with a server, instead of a bespoke client per API. The tool names in this
+README's Confluence walkthrough were read out of the real server with
+`mcp-cli tools confluence` — no model involved in that either.
+
+Three things the model *was* doing for you, which now fall to you:
+
+- **Choosing the tool and its arguments.** A model does that per request; you do
+  it once with `tools`, `schema` and `discover`, then hard-code it. Ideal for a
+  known task, no help for an open-ended one.
+- **Tolerating output written for a model.** Descriptions are prose, results are
+  often JSON stuffed inside a text block, and response shapes are not versioned
+  the way a REST API would be. That is why `-raw` parses the text into an object
+  for you, and why the Confluence example says to confirm field names with
+  `jq keys` — a server can reshape its output between releases.
+- **Answering the server back.** A few servers drive the client: sampling (the
+  server asks you to run an inference) and elicitation (interactive prompting).
+  `mcp-cli` declines both with `-32601`, which is correct for lookups but means
+  a tool built around them will not run.
+
+Worth knowing on speed: an MCP server is slower than the API it wraps. A stdio
+server costs roughly a second of process spawn per invocation; an already-running
+HTTP server answers a `ping` in about 9ms. For a hot path, call the vendor API
+directly — `mcp-cli` earns its place when the alternative is maintaining several
+bespoke API clients.
+
 
 ## Install
 
