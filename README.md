@@ -60,6 +60,44 @@ bespoke API clients.
 
 ## Install
 
+Download a prebuilt binary from
+[Releases](https://github.com/justynroberts/mcp-cli/releases). Every build is
+fully static, so a Linux binary runs on any distro, Alpine and musl included.
+
+| Platform | Asset |
+|---|---|
+| macOS, Apple Silicon | `mcp-cli-darwin-arm64.tar.gz` |
+| macOS, Intel | `mcp-cli-darwin-amd64.tar.gz` |
+| Linux x86-64 | `mcp-cli-linux-amd64.tar.gz` |
+| Linux ARM64 — including containers under Colima or Docker Desktop on Apple Silicon | `mcp-cli-linux-arm64.tar.gz` |
+| Linux ARMv7 | `mcp-cli-linux-arm.tar.gz` |
+
+Not sure which Linux build? `uname -m` prints `aarch64` for arm64 and `x86_64`
+for amd64.
+
+```bash
+gh release download v0.1.0 -R justynroberts/mcp-cli -p 'mcp-cli-linux-arm64.tar.gz'
+tar -xzf mcp-cli-linux-arm64.tar.gz
+sudo install mcp-cli-linux-arm64/mcp-cli /usr/local/bin/
+```
+
+Into a running container, or from a Dockerfile:
+
+```bash
+docker cp mcp-cli-linux-arm64/mcp-cli <container>:/usr/local/bin/mcp-cli
+```
+
+```dockerfile
+COPY mcp-cli-linux-arm64/mcp-cli /usr/local/bin/mcp-cli
+```
+
+The macOS binaries are not notarised. If Gatekeeper blocks one downloaded
+through a browser, run `xattr -d com.apple.quarantine mcp-cli`.
+`gh release download` does not trigger the block. Verify any download against
+`checksums.txt`.
+
+To build from source instead:
+
 ```bash
 make build           # ./mcp-cli
 make install         # into $GOBIN
@@ -69,6 +107,82 @@ make release         # dist/ for darwin, linux, windows × amd64/arm64
 Requires Go 1.24+ to build. The resulting binary requires nothing.
 
 ## Quick start
+
+### Try it with no credentials
+
+[DeepWiki](https://deepwiki.com) runs a public MCP server over Streamable HTTP
+that needs no auth, no Node and no config file, just outbound HTTPS. That makes
+it a good first test, including from a bare Alpine container.
+
+```bash
+# Can we reach it?
+mcp-cli -url https://mcp.deepwiki.com/mcp ping -p
+
+# What can it do? (ask_question, read_wiki_contents, read_wiki_structure)
+mcp-cli -url https://mcp.deepwiki.com/mcp tools -p
+
+# Call a tool
+mcp-cli -url https://mcp.deepwiki.com/mcp call read_wiki_structure \
+  repoName=modelcontextprotocol/go-sdk -raw
+```
+
+The last command returns the repository's documentation outline as a JSON
+object. An `x509: certificate signed by unknown authority` error means the
+machine has no CA roots; on Alpine, `apk add ca-certificates`.
+
+### Name the server in a config file
+
+`-url` is fine for a one-off. For anything repeated, name the server once:
+
+```bash
+cat > mcp-cli.yaml <<'EOF'
+version: 1
+servers:
+  deepwiki:
+    transport: http
+    url: https://mcp.deepwiki.com/mcp
+EOF
+
+mcp-cli servers -p
+mcp-cli call deepwiki ask_question repoName=golang/go question="How does the scheduler work?" -p
+```
+
+`./mcp-cli.yaml` in the current directory is picked up automatically.
+`ask_question` is slower than the other tools because DeepWiki generates the
+answer.
+
+`servers` (alias `ls`) lists what the config defines. It only reads the file
+and never connects, so it is the quickest way to check which config was loaded
+and that it parsed:
+
+```console
+$ mcp-cli servers -p
+{
+  "ok": true,
+  "command": "servers",
+  "data": {
+    "config": "/path/to/mcp-cli.yaml",
+    "default": "",
+    "servers": [
+      {
+        "name": "deepwiki",
+        "transport": "http",
+        "target": "https://mcp.deepwiki.com/mcp"
+      }
+    ]
+  },
+  "elapsed_ms": 0
+}
+```
+
+`config` is the file actually loaded, and `default` is the server used when a
+command omits the name. For each server, `target` is the URL or, for stdio,
+the command line. `auth` shows the auth type (never the token) and appears
+only when one is configured, as do `disabled` and `description`. To check that
+the servers are actually *reachable*, use `mcp-cli discover`, which connects
+to all of them in parallel and reports a per-server `error` for any that fail.
+
+### A real server with credentials
 
 ```bash
 mcp-cli init                        # writes ~/.config/mcp-cli/config.yaml
@@ -85,6 +199,9 @@ No config needed for a one-off:
 mcp-cli -url https://api.githubcopilot.com/mcp/ -token '${GITHUB_TOKEN}' tools
 mcp-cli -cmd "npx -y @modelcontextprotocol/server-filesystem /tmp" tools
 ```
+
+stdio servers launched through `npx` need Node on the machine; in Alpine,
+`apk add nodejs npm`. HTTP servers need nothing extra.
 
 ## Examples
 

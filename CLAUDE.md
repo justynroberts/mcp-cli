@@ -24,7 +24,8 @@ make build                  # ./mcp-cli
 make test                   # go test ./...
 make test-race              # race detector; the transports are concurrent
 make lint                   # gofmt -l + go vet
-make release                # dist/ × darwin|linux|windows × amd64|arm64
+make release                # dist/: darwin, linux, windows × amd64/arm64, plus linux/arm
+make                        # no target = `make help`
 go test ./internal/cli -run TestToolsAndCallEndToEnd -v   # one test
 ```
 
@@ -72,7 +73,7 @@ with `-32601` — dropping them makes servers hang.
 rejected version needs a *fresh* transport (a stdio child usually exits on a
 failed handshake), so `Open` loops over `ProtocolVersion` + fallbacks and
 re-dials each time. `isVersionError` decides whether a failure is worth
-retrying.
+retrying. The ladder is `2025-06-18` → `2025-03-26` → `2024-11-05`.
 
 **Tool arguments are coerced against the server's own schema.** `call` fetches
 the tool via `findTool` first, then `buildArguments` uses its `inputSchema` to
@@ -101,11 +102,13 @@ regression test is `TestNonTextContentSurvivesFlattening`.
 
 **Errors carry a kind, and the kind is the exit code.** Wrap failures with
 `output.Wrap("usage"|"config"|"connect"|"rpc"|"tool"|"io", err)`; the mapping to
-exit codes 2–6 lives in `output.exitFor`. Use `output.Classify(kind, err)`
-wherever a deadline can fire: it re-tags timeouts and cancellations as
-`"timeout"` (exit 4) instead of reporting them as RPC faults. An unwrapped error exits 1 — that is
-a code smell, not a default. `*mcp.RPCError` is detected via its `RPCDetails`
-method so the JSON-RPC code reaches the output envelope.
+exit codes 2–6 lives in `output.exitFor`. `"io"` has no mapping and falls
+through to exit 1 like an unwrapped error; only `init` uses it. Use
+`output.Classify(kind, err)` wherever a deadline can fire: it re-tags timeouts
+and cancellations as `"timeout"` (exit 4) instead of reporting them as RPC
+faults. An unwrapped error exits 1 — that is a code smell, not a default.
+`*mcp.RPCError` is detected via its `RPCDetails` method so the JSON-RPC code
+reaches the output envelope.
 
 **Flags are accepted anywhere on the line**, including after positional
 arguments (`call github search_issues query=bug -raw`). Go's `flag` package
@@ -130,6 +133,13 @@ and exit code are handled for you. Call `c.open(ctx)` to get a session; it
 consumes the leading positional argument as the server name unless `-url`/`-cmd`
 defined the server inline, which is why commands read their own arguments from
 `c.args` *after* calling `open`.
+
+`mcp-cli init` writes `starterConfig` (`internal/cli/starter.go`), a
+commented example config. If you change the config schema, update it and the
+README's Configuration section in the same change.
+
+The version string is injected at build time via `-ldflags -X
+.../internal/cli.Version`; a plain `go build` reports the default.
 
 ## Testing
 
