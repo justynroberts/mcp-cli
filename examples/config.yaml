@@ -9,6 +9,13 @@ defaults:
   # server: github          # used when a command omits the server name
 
 servers:
+  # Works out of the box: a public server, no credentials, no Node.
+  # Good for checking an install -- try: mcp-cli ping deepwiki
+  deepwiki:
+    description: Documentation and Q&A for any public GitHub repository
+    transport: http
+    url: https://mcp.deepwiki.com/mcp
+
   # GitHub's hosted MCP server (Streamable HTTP + bearer auth).
   # Create a PAT at https://github.com/settings/tokens and export GITHUB_TOKEN.
   github:

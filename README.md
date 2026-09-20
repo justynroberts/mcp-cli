@@ -60,35 +60,37 @@ bespoke API clients.
 
 ## Install
 
-Download a prebuilt binary from
-[Releases](https://github.com/justynroberts/mcp-cli/releases). Every build is
-fully static, so a Linux binary runs on any distro, Alpine and musl included.
+Download the binary for your platform from
+[Releases](https://github.com/justynroberts/mcp-cli/releases) — the assets are
+plain executables, nothing to unpack. Every build is fully static, so a Linux
+binary runs on any distro, Alpine and musl included.
 
 | Platform | Asset |
 |---|---|
-| macOS, Apple Silicon | `mcp-cli-darwin-arm64.tar.gz` |
-| macOS, Intel | `mcp-cli-darwin-amd64.tar.gz` |
-| Linux x86-64 | `mcp-cli-linux-amd64.tar.gz` |
-| Linux ARM64 — including containers under Colima or Docker Desktop on Apple Silicon | `mcp-cli-linux-arm64.tar.gz` |
-| Linux ARMv7 | `mcp-cli-linux-arm.tar.gz` |
+| macOS, Apple Silicon | `mcp-cli-darwin-arm64` |
+| macOS, Intel | `mcp-cli-darwin-amd64` |
+| Linux x86-64 | `mcp-cli-linux-amd64` |
+| Linux ARM64 — including containers under Colima or Docker Desktop on Apple Silicon | `mcp-cli-linux-arm64` |
+| Linux ARMv7 | `mcp-cli-linux-arm` |
 
 Not sure which Linux build? `uname -m` prints `aarch64` for arm64 and `x86_64`
 for amd64.
 
 ```bash
-gh release download v0.1.0 -R justynroberts/mcp-cli -p 'mcp-cli-linux-arm64.tar.gz'
-tar -xzf mcp-cli-linux-arm64.tar.gz
-sudo install mcp-cli-linux-arm64/mcp-cli /usr/local/bin/
+gh release download -R justynroberts/mcp-cli -p 'mcp-cli-linux-arm64'
+chmod +x mcp-cli-linux-arm64
+sudo install mcp-cli-linux-arm64 /usr/local/bin/mcp-cli
 ```
 
 Into a running container, or from a Dockerfile:
 
 ```bash
-docker cp mcp-cli-linux-arm64/mcp-cli <container>:/usr/local/bin/mcp-cli
+docker cp mcp-cli-linux-arm64 <container>:/usr/local/bin/mcp-cli
 ```
 
 ```dockerfile
-COPY mcp-cli-linux-arm64/mcp-cli /usr/local/bin/mcp-cli
+COPY mcp-cli-linux-arm64 /usr/local/bin/mcp-cli
+RUN chmod +x /usr/local/bin/mcp-cli
 ```
 
 The macOS binaries are not notarised. If Gatekeeper blocks one downloaded
@@ -132,7 +134,10 @@ machine has no CA roots; on Alpine, `apk add ca-certificates`.
 
 ### Name the server in a config file
 
-`-url` is fine for a one-off. For anything repeated, name the server once:
+`-url` is fine for a one-off. For anything repeated, name the server once.
+The starter config that `mcp-cli init` writes already defines `deepwiki`, so
+`mcp-cli ping deepwiki` works before you add a single credential. To write the
+file by hand:
 
 ```bash
 cat > mcp-cli.yaml <<'EOF'
