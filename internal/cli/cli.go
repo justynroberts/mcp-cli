@@ -4,6 +4,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -31,6 +32,7 @@ type globals struct {
 	verbose    bool
 	full       bool
 	protocol   string
+	version    bool
 
 	// Ad-hoc server definition, used instead of the config file.
 	url       string
@@ -52,6 +54,7 @@ func (g *globals) register(fs *flag.FlagSet) {
 	fs.BoolVar(&g.verbose, "v", g.verbose, "shorthand for -verbose")
 	fs.BoolVar(&g.full, "full", g.full, "include raw content blocks and full schemas in the output")
 	fs.StringVar(&g.protocol, "protocol", g.protocol, "pin the MCP protocol version instead of negotiating")
+	fs.BoolVar(&g.version, "version", g.version, "print the CLI and protocol versions, then exit")
 
 	fs.StringVar(&g.url, "url", g.url, "connect to this MCP endpoint instead of a configured server")
 	fs.StringVar(&g.cmdline, "cmd", g.cmdline, "launch this command as a stdio MCP server instead of a configured server")
@@ -122,6 +125,16 @@ func Run(argv []string) int {
 	g.register(root)
 	rootFlags, rootPositional, err := splitArgs(root, argv)
 	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			if len(rootPositional) > 0 {
+				if c := lookup(rootPositional[0]); c != nil {
+					fmt.Fprintf(os.Stdout, "Usage: mcp-cli %s\n\n%s\n", c.usage, c.summary)
+					return 0
+				}
+			}
+			usage(os.Stdout)
+			return 0
+		}
 		fmt.Fprintf(os.Stderr, "mcp-cli: %v\n\n", err)
 		usage(os.Stderr)
 		return 2
@@ -137,6 +150,9 @@ func Run(argv []string) int {
 	}
 
 	rest := rootPositional
+	if g.version && len(rest) == 0 {
+		rest = []string{"version"}
+	}
 	if len(rest) == 0 {
 		usage(os.Stdout)
 		return 0
@@ -167,6 +183,10 @@ func Run(argv []string) int {
 	g.register(sub)
 	subFlags, subPositional, err := splitArgs(sub, rest[1:])
 	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			fmt.Fprintf(os.Stdout, "Usage: mcp-cli %s\n\n%s\n", cmd.usage, cmd.summary)
+			return 0
+		}
 		fmt.Fprintf(os.Stderr, "mcp-cli: %v\nUsage: mcp-cli %s\n", err, cmd.usage)
 		return 2
 	}
@@ -354,6 +374,8 @@ Flags:
       -transport http|sse   transport for -url (default http)
       -insecure        skip TLS verification
       -protocol VER    pin the MCP protocol version
+  -h, -help            show this help (or "mcp-cli help <command>")
+      -version         print the CLI and protocol versions
 
 Examples:
   mcp-cli servers

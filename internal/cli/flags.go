@@ -36,6 +36,14 @@ func splitArgs(fs *flag.FlagSet, args []string) (flags, positional []string, err
 
 		f := fs.Lookup(name)
 		if f == nil {
+			// -h/-help are never registered as flags, so that "help" and
+			// "-h" can print the same text from one place in Run.
+			if name == "h" || name == "help" {
+				// Keep the positionals seen so far: Run uses the first of
+				// them to print that subcommand's usage rather than the
+				// general one.
+				return nil, positional, flag.ErrHelp
+			}
 			// Let the flag package produce the error and its usage text.
 			return nil, nil, fmt.Errorf("flag provided but not defined: -%s", name)
 		}

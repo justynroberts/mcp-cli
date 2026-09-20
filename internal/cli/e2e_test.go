@@ -524,3 +524,58 @@ func TestEmptyListsAreArraysNotNull(t *testing.T) {
 		t.Errorf("tools should be [], got %s", out)
 	}
 }
+
+// Every spelling of help and version must exit 0 and print to stdout. These
+// used to fail with "flag provided but not defined": splitArgs rejected -h
+// before Run could recognise it.
+func TestHelpAndVersionSpellings(t *testing.T) {
+	for _, argv := range [][]string{
+		{"help"}, {"-h"}, {"-help"}, {"--help"}, {},
+	} {
+		code, out := runCLI(t, argv...)
+		if code != 0 {
+			t.Errorf("%v: exit = %d, want 0", argv, code)
+		}
+		if !strings.Contains(out, "Usage:") {
+			t.Errorf("%v: stdout has no usage text: %q", argv, out)
+		}
+	}
+
+	for _, argv := range [][]string{
+		{"version"}, {"-version"}, {"--version"},
+	} {
+		code, out := runCLI(t, argv...)
+		if code != 0 {
+			t.Errorf("%v: exit = %d, want 0", argv, code)
+		}
+		if decode(t, out)["command"] != "version" {
+			t.Errorf("%v: not the version envelope: %s", argv, out)
+		}
+	}
+}
+
+// Help asked for after a subcommand describes that subcommand, whether the
+// flag lands before or after its positional arguments.
+func TestSubcommandHelp(t *testing.T) {
+	for _, argv := range [][]string{
+		{"help", "call"},
+		{"call", "-h"},
+		{"call", "--help"},
+		{"call", "mock", "echo", "-h"},
+	} {
+		code, out := runCLI(t, argv...)
+		if code != 0 {
+			t.Errorf("%v: exit = %d, want 0", argv, code)
+		}
+		if !strings.Contains(out, "mcp-cli call <server> <tool>") {
+			t.Errorf("%v: not the call usage: %q", argv, out)
+		}
+	}
+}
+
+// An undefined flag is still a usage error, and still exits 2.
+func TestUndefinedFlagStillFails(t *testing.T) {
+	if code, _ := runCLI(t, "tools", "--nosuchflag"); code != 2 {
+		t.Errorf("exit = %d, want 2", code)
+	}
+}

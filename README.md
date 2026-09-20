@@ -504,6 +504,11 @@ Global flags: `-c/-config`, `-p/-pretty`, `-raw`, `-v/-verbose`, `-full`,
 `-timeout`, `-url`, `-cmd`, `-token`, `-header`, `-transport`, `-insecure`,
 `-protocol`. They may appear before or after the subcommand.
 
+`-h`, `-help` and `--help` all print the usage, and after a subcommand they
+describe that subcommand — `mcp-cli call -h` is the same as
+`mcp-cli help call`. `-version` and `--version` match the `version` command.
+Note that `-v` is `-verbose`, not `-version`.
+
 ### Arguments
 
 Tool arguments are `key=value` pairs. Values are coerced to whatever the tool's
