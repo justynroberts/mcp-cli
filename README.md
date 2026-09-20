@@ -76,8 +76,7 @@ Not sure which Linux build? `uname -m` prints `aarch64` for arm64 and `x86_64`
 for amd64.
 
 ```bash
-gh release download -R justynroberts/mcp-cli -p 'mcp-cli-linux-arm64.tar.gz'
-tar -xzf mcp-cli-linux-arm64.tar.gz
+curl -fsSL https://github.com/justynroberts/mcp-cli/releases/latest/download/mcp-cli-linux-arm64.tar.gz | tar -xz
 sudo install mcp-cli-linux-arm64/mcp-cli /usr/local/bin/
 ```
 
@@ -603,3 +602,7 @@ cancellation. Server-initiated requests (sampling, roots, elicitation) are
 answered with `-32601` rather than ignored, so servers never block on them.
 
 OAuth flows are out of scope: bring a token the server accepts.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
